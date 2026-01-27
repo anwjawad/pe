@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Palliative Equipments</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo-container">
+                <img src="assets/logo.png" alt="Logo" class="app-logo">
+                <h2>Palliative Equipments</h2>
+            </div>
+            <ul class="nav-links">
+                <li class="active" onclick="showSection('dashboard')"><i class="fas fa-chart-pie"></i> Dashboard</li>
+                <li onclick="showSection('new-record')"><i class="fas fa-plus-circle"></i> New Record</li>
+                <li onclick="showSection('transactions')"><i class="fas fa-list-alt"></i> Transactions</li>
+                <li onclick="showSection('settings')"><i class="fas fa-cog"></i> Settings</li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active-section">
+                <header class="top-bar">
+                    <h1>Overview</h1>
+                    <div class="status-indicator">
+                        <span class="dot online"></span> Live Sync
+                    </div>
+                </header>
+
+                <div class="inventory-grid" id="inventory-grid">
+                    <!-- Cards will be injected here by JS -->
+                    <div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading Inventory...</div>
+                </div>
+            </section>
+
+            <!-- New Record Form Section -->
+            <section id="new-record" class="section">
+                <header class="top-bar">
+                    <h1>New Device Record</h1>
+                </header>
+
+                <div class="form-container glass-panel">
+                    <form id="equipmentForm">
+                        <div class="form-grid">
+                            <!-- Patient Info -->
+                            <div class="form-group">
+                                <label>Patient Name</label>
+                                <input type="text" name="patientName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Patient ID / File Number</label>
+                                <input type="text" name="patientId" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Medical Diagnosis</label>
+                                <select name="diagnosis" required id="diagnosisSelect">
+                                    <!-- Options populated by JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Area / Region</label>
+                                <select name="area" required id="areaSelect">
+                                    <!-- Options populated by JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Contact Number</label>
+                                <input type="tel" name="contact" required>
+                            </div>
+
+                            <!-- Recipient Info -->
+                            <div class="form-group">
+                                <label>Device Recipient Name</label>
+                                <input type="text" name="recipientName" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Recipient ID Number</label>
+                                <input type="text" name="recipientId" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Relationship</label>
+                                <input type="text" name="relationship" required>
+                            </div>
+
+                            <!-- Device Info -->
+                            <div class="form-group">
+                                <label>Required Device</label>
+                                <select name="device" required id="deviceSelect">
+                                    <!-- Options populated by JS -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Device Number</label>
+                                <input type="text" name="deviceNumber" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Receipt Status</label>
+                                <select name="status" required>
+                                    <option value="Received">Received</option>
+                                    <option value="Not Received">Not Received</option>
+                                </select>
+                            </div>
+
+                            <!-- Dates & Signature -->
+                            <div class="form-group">
+                                <label>Delivery Date</label>
+                                <input type="date" name="deliveryDate" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Return Date (Expected)</label>
+                                <input type="date" name="returnDate">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Palliative Care Dept. Signature</label>
+                                <select name="signature" required id="signatureSelect">
+                                    <!-- Options populated by JS -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-full-width">
+                            <label>Notes</label>
+                            <textarea name="notes" rows="3"></textarea>
+                        </div>
+
+                        <input type="hidden" name="action" value="addTransaction">
+                        <!-- Default type is New, can be changed to Return for existing items in future updates -->
+                        <input type="hidden" name="type" value="New">
+
+                        <div class="btn-group" style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn-submit">
+                                <span class="btn-text">Save Record</span>
+                                <div class="loader"></div>
+                            </button>
+                            <button type="button" class="btn-secondary" onclick="printForm('en')">
+                                <i class="fas fa-print"></i> Print (EN)
+                            </button>
+                            <button type="button" class="btn-secondary" onclick="printForm('ar')">
+                                <i class="fas fa-print"></i> Print (AR)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Settings / Inventory Update Section -->
+            <section id="settings" class="section">
+                <header class="top-bar">
+                    <h1>Inventory Settings</h1>
+                </header>
+                <div class="glass-panel">
+                    <p>Update total stock for each device.</p>
+                    <form id="inventoryUpdateForm">
+                        <div class="form-group">
+                            <label>Device</label>
+                            <select name="device" id="inventoryDeviceSelect">
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>New Total Stock</label>
+                            <input type="number" name="newTotal" min="0" required>
+                        </div>
+                        <input type="hidden" name="action" value="updateInventory">
+                        <button type="submit" class="btn-submit">Update Stock</button>
+                    </form>
+                </div>
+
+                <div class="glass-panel" style="margin-top: 2rem;">
+                    <h3>App Configuration</h3>
+                    <div class="form-group">
+                        <label>Google Web App URL</label>
+                        <input type="text" id="webhookUrlInput" placeholder="Paste your GAS Web App URL here"
+                            style="width: 100%;">
+                        <button onclick="saveWebhookUrl()" class="btn-secondary" style="margin-top: 10px;">Save
+                            URL</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Transactions (Placeholder for now) -->
+            <section id="transactions" class="section">
+                <header class="top-bar">
+                    <h1>Recent Transactions</h1>
+                    <button class="btn-secondary" onclick="fetchData()">Refresh</button>
+                </header>
+                <div class="glass-panel">
+                    <div id="transactions-list">
+                        <p>Loading transactions...</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast">Action Successful</div>
+
+    <!-- PRINT TEMPLATES (Hidden on Screen) -->
+    <div id="print-area">
+        <!-- English Template -->
+        <div id="print-en" class="print-page">
+            <header class="print-header">
+                <h3>THE LUTHERAN WORLD FEDERATION</h3>
+                <h3>AUGUSTA VICTORIA HOSPITAL</h3>
+                <p>Tel: 02-6279911 Fax: 02-6279959 P.O. Box: 19178</p>
+                <p>Established 1950 – Jerusalem</p>
+            </header>
+
+            <h2 class="form-title">Medical Equipment Home Loan Form</h2>
+
+            <div class="print-grid">
+                <div class="field-row"><strong>Patient Name:</strong> <span class="p-patientName"></span></div>
+                <div class="field-row"><strong>Name of Equipment Recipient:</strong> <span
+                        class="p-recipientName"></span></div>
+                <div class="field-row"><strong>Relationship:</strong> <span class="p-relationship"></span></div>
+                <div class="field-row"><strong>Patient ID / Medical File Number:</strong> <span
+                        class="p-patientId"></span></div>
+                <div class="field-row"><strong>Recipient ID Number:</strong> <span class="p-recipientId"></span></div>
+                <div class="field-row"><strong>Contact Number:</strong> <span class="p-contact"></span></div>
+                <div class="field-row"><strong>Patient’s Medical Diagnosis:</strong> <span class="p-diagnosis"></span>
+                </div>
+                <div class="field-row"><strong>Equipment to Be Loaned:</strong> <span class="p-device"></span></div>
+                <div class="field-row"><strong>Equipment Number:</strong> <span class="p-deviceNumber"></span></div>
+                <div class="field-row"><strong>Date of Receipt:</strong> <span class="p-deliveryDate"></span></div>
+            </div>
+
+            <div class="signature-section">
+                <div class="sig-block">
+                    <p>Palliative Care Department Signature:</p>
+                    <div class="sig-line p-signature"></div>
+                </div>
+                <div class="sig-block">
+                    <p>Biomedical Engineering Department Signature:</p>
+                    <div class="sig-line"></div>
+                </div>
+            </div>
+
+            <div class="field-row"><strong>Date of Return:</strong> <span class="p-returnDate"></span></div>
+
+            <div class="signature-section">
+                <div class="sig-block">
+                    <p>Palliative Care Department Signature:</p>
+                    <div class="sig-line"></div>
+                </div>
+                <div class="sig-block">
+                    <p>Patient’s / Recipient’s Signature:</p>
+                    <div class="sig-line"></div>
+                </div>
+            </div>
+
+            <div class="print-footer">
+                <p><strong>Note:</strong></p>
+                <p>The recipient is responsible for maintaining the equipment in good working condition and must return
+                    it in the same condition as received from Augusta Victoria Hospital.</p>
+                <p>In case of any damage or malfunction, the recipient bears full responsibility.</p>
+                <p><strong>Attachments:</strong></p>
+                <p>- Copy of the patient’s and recipient’s ID</p>
+                <p>- Promissory note equivalent to the value of the received equipment</p>
+            </div>
+        </div>
+
+        <!-- Arabic Template -->
+        <div id="print-ar" class="print-page" dir="rtl">
+            <header class="print-header">
+                <h3>الاتحاد اللوثري العالمي</h3>
+                <h3>مستشفى المطلع - أوغستا فيكتوريا</h3>
+                <p>هاتف: 6279911-02 فاكس: 6279959-02 ص.ب: 19178</p>
+                <p>تأسس 1950 – القدس</p>
+            </header>
+
+            <h2 class="form-title">نموذج إعارة أجهزة طبية منزلية</h2>
+
+            <div class="print-grid">
+                <div class="field-row"><strong>اسم المريض:</strong> <span class="p-patientName"></span></div>
+                <div class="field-row"><strong>اسم مستلم الجهاز:</strong> <span class="p-recipientName"></span></div>
+                <div class="field-row"><strong>صلة القرابة:</strong> <span class="p-relationship"></span></div>
+                <div class="field-row"><strong>رقم هوية المريض / الملف الطبي:</strong> <span class="p-patientId"></span>
+                </div>
+                <div class="field-row"><strong>رقم هوية المستلم:</strong> <span class="p-recipientId"></span></div>
+                <div class="field-row"><strong>رقم الهاتف:</strong> <span class="p-contact"></span></div>
+                <div class="field-row"><strong>التشخيص الطبي:</strong> <span class="p-diagnosis"></span></div>
+                <div class="field-row"><strong>الجهاز المعار:</strong> <span class="p-device"></span></div>
+                <div class="field-row"><strong>رقم الجهاز:</strong> <span class="p-deviceNumber"></span></div>
+                <div class="field-row"><strong>تاريخ الاستلام:</strong> <span class="p-deliveryDate"></span></div>
+            </div>
+
+            <div class="signature-section">
+                <div class="sig-block">
+                    <p>توقيع قسم الرعاية التلطيفية:</p>
+                    <div class="sig-line p-signature"></div>
+                </div>
+                <div class="sig-block">
+                    <p>توقيع قسم الهندسة الطبية:</p>
+                    <div class="sig-line"></div>
+                </div>
+            </div>
+
+            <div class="field-row"><strong>تاريخ الإعادة:</strong> <span class="p-returnDate"></span></div>
+
+            <div class="signature-section">
+                <div class="sig-block">
+                    <p>توقيع قسم الرعاية التلطيفية (عند الإعادة):</p>
+                    <div class="sig-line"></div>
+                </div>
+                <div class="sig-block">
+                    <p>توقيع المريض / المستلم:</p>
+                    <div class="sig-line"></div>
+                </div>
+            </div>
+
+            <div class="print-footer">
+                <p><strong>ملاحظة:</strong></p>
+                <p>المستلم مسؤول عن الحفاظ على الجهاز بحالة جيدة ويجب إعادته بنفس الحالة التي تم استلامه بها من مستشفى
+                    المطلع.</p>
+                <p>في حال حدوث أي ضرر أو عطل، يتحمل المستلم المسؤولية الكاملة.</p>
+                <p><strong>المرفقات:</strong></p>
+                <p>- صورة عن هوية المريض والمستلم</p>
+                <p>- كمبيالة بقيمة الجهاز المستلم</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
