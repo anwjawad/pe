@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Palliative Equipments</title>
+    <title>Palliative Equipments v2.0</title>
     <link rel="stylesheet" href="style.css">
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -111,7 +111,7 @@
                                 <label>Receipt Status</label>
                                 <select name="status" required>
                                     <option value="Received">Received</option>
-                                    <option value="Not Received">Not Received</option>
+                                    <option value="Delivered">Delivered</option>
                                 </select>
                             </div>
 
@@ -196,7 +196,11 @@
             <section id="transactions" class="section">
                 <header class="top-bar">
                     <h1>Recent Transactions</h1>
-                    <button class="btn-secondary" onclick="fetchData()">Refresh</button>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="searchTransactions" placeholder="Search transactions..."
+                            style="padding: 8px; border-radius: 6px; border: 1px solid #ddd;">
+                        <button class="btn-secondary" onclick="fetchData()">Refresh</button>
+                    </div>
                 </header>
                 <div class="glass-panel">
                     <div id="transactions-list">

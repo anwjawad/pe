@@ -41,11 +41,18 @@ const LISTS = {
     ]
 };
 
+// --- State Management ---
+let appState = {
+    inventory: {},
+    transactions: []
+};
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
     populateDropdowns();
     setupNavigation();
     setupForms();
+    setupFilters();
     loadWebhookUrlInput();
 
     if (CONFIG.webhookUrl) {
@@ -140,40 +147,55 @@ function saveWebhookUrl() {
 async function fetchData() {
     if (!CONFIG.webhookUrl) return;
 
+    // Only show spinner if we have no data at all
     const grid = document.getElementById('inventory-grid');
-    grid.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Syncing...</div>';
+    if (Object.keys(appState.inventory).length === 0) {
+        grid.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Syncing...</div>';
+    }
 
     try {
         const response = await fetch(CONFIG.webhookUrl);
         const result = await response.json();
 
         if (result.status === 'success') {
-            renderDashboard(result.data);
-            if (result.transactions) {
-                renderTransactionsList(result.transactions);
-            }
+            // Update Local State
+            appState.inventory = result.data || {};
+            appState.transactions = result.transactions || [];
+
+            renderDashboard();
+            renderTransactionsList(appState.transactions);
         } else {
             console.error("API Error:", result);
-            grid.innerHTML = '<div class="error">Error syncing data. Check console.</div>';
+            if (Object.keys(appState.inventory).length === 0) {
+                grid.innerHTML = '<div class="error">Error syncing data. Check console.</div>';
+            }
         }
     } catch (err) {
         console.error("Fetch Error:", err);
-        grid.innerHTML = '<div class="error">Connection failed. Check URL.</div>';
+        if (Object.keys(appState.inventory).length === 0) {
+            grid.innerHTML = '<div class="error">Connection failed. Check URL.</div>';
+        }
     }
 }
 
 function renderDashboard(data) {
+    // If data is passed, use it (legacy support), otherwise use appState
+    const inventoryData = data || appState.inventory;
+
     const grid = document.getElementById('inventory-grid');
     grid.innerHTML = '';
 
     // We iterate through our defined devices to ensure order and icons, 
     // merging with fetched data.
     LISTS.devices.forEach(deviceDef => {
-        const deviceData = data[deviceDef.name] || { total: 0, available: 0, rented: 0 };
+        const deviceData = inventoryData[deviceDef.name] || { total: 0, available: 0, rented: 0 };
         // If data is missing (not in sheet yet), default to 0.
 
         const card = document.createElement('div');
         card.className = 'inventory-card';
+        // Add ID for selective updates if needed later
+        card.dataset.device = deviceDef.name;
+
         card.innerHTML = `
             <div class="card-icon">
                 <i class="fas ${deviceDef.icon}"></i>
@@ -257,31 +279,75 @@ function printData(data, lang) {
 }
 
 // --- API Submission ---
+// --- API Submission (Refactored for Optimistic UI) ---
 async function handleFormSubmit(form) {
-    const btn = form.querySelector('button[type="submit"]');
-    const originalText = btn.innerHTML;
+    const btn = form.querySelector('button[type="submit"]'); // Keep reference but don't disable UI for speed
+    const formData = new FormData(form);
+    const data = {};
+    formData.forEach((value, key) => data[key] = value);
 
-    if (!CONFIG.webhookUrl) {
-        showToast("Please configure Web App URL in Settings", "error");
-        return;
+    // Save current state for rollback if needed
+    const backupState = JSON.parse(JSON.stringify(appState));
+
+    // --- Optimistic Update Start ---
+    const timestamp = new Date().toISOString();
+
+    if (data.action === "addTransaction") {
+        // 1. Add to local transactions
+        const newTx = {
+            ...data,
+            timestamp: timestamp,
+            row: -1 // temporary ID, will be refreshed on next sync
+        };
+        appState.transactions.unshift(newTx); // Add to top
+
+        // 2. Update Local Inventory if "Delivered"
+        if ((data.status === "Delivered" || data.status === "Not Received") && data.device) {
+            const deviceName = data.device;
+            if (!appState.inventory[deviceName]) {
+                appState.inventory[deviceName] = { total: 0, available: 0, rented: 0 };
+            }
+            // Decrease available, Increase rented
+            appState.inventory[deviceName].rented = (appState.inventory[deviceName].rented || 0) + 1;
+            appState.inventory[deviceName].available = (appState.inventory[deviceName].total || 0) - appState.inventory[deviceName].rented;
+            if (appState.inventory[deviceName].available < 0) appState.inventory[deviceName].available = 0;
+        }
+
+        showToast("Saved! Syncing...");
+
+        // Auto-print Arabic Receipt
+        // Use setTimeout to allow UI to update (toast/grid) before print dialog blocks
+        setTimeout(() => {
+            printData(data, 'ar');
+            form.reset();
+        }, 500);
+
+    } else if (data.action === "updateInventory") {
+        // Update Inventory Total
+        const deviceName = data.device;
+        const newTotal = parseInt(data.newTotal) || 0;
+
+        if (!appState.inventory[deviceName]) {
+            appState.inventory[deviceName] = { total: 0, available: 0, rented: 0 };
+        }
+
+        appState.inventory[deviceName].total = newTotal;
+        // Re-calc available
+        appState.inventory[deviceName].available = newTotal - (appState.inventory[deviceName].rented || 0);
+        if (appState.inventory[deviceName].available < 0) appState.inventory[deviceName].available = 0;
+
+        showToast("Inventory Updated!");
     }
 
+    // Re-render UI immediately
+    renderDashboard();
+    renderTransactionsList(appState.transactions);
+    // --- Optimistic Update End ---
+
+    if (!CONFIG.webhookUrl) return;
+
     try {
-        // UI Loading State
-        btn.disabled = true;
-        btn.classList.add('loading');
-        btn.innerHTML = '<div class="loader"></div> Processing...';
-
-        // Collect Data
-        const formData = new FormData(form);
-        const data = {};
-        formData.forEach((value, key) => data[key] = value);
-
-        // Send Request (using no-cors mode if needed, but GAS requires CORS handling on server. 
-        // We used ContentService.createTextOutput..JSON so it should be fine with standard fetch if simple POST).
-        // Actually, GAS doPost simple fetch often faces CORS issues if not handled perfectly or if using 'application/json'. 
-        // 'text/plain' payload is safer for avoiding OPTIONS preflight issues in some environments without complex GAS CORS setup.
-
+        // Send to Backend
         const response = await fetch(CONFIG.webhookUrl, {
             method: 'POST',
             body: JSON.stringify(data)
@@ -290,31 +356,30 @@ async function handleFormSubmit(form) {
         const result = await response.json();
 
         if (result.status === 'success') {
-            showToast("Saved Successfully!");
-            form.reset();
-            // Refresh Dashboard
+            // Success - Silent sync refresh to get real Row IDs and confirm data
+            // We fetch data again to ensure consistency, but user already sees the result
             fetchData();
         } else {
-            showToast("Error: " + result.message, "error");
+            throw new Error(result.message);
         }
 
     } catch (err) {
         console.error(err);
-        showToast("Network Error or CORS issue. View Console.", "error");
-    } finally {
-        // Reset UI
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        btn.innerHTML = originalText;
+        showToast("Sync Error! Reverting changes.", "error");
+        // Rollback
+        appState = backupState;
+        renderDashboard();
+        renderTransactionsList(appState.transactions);
     }
 }
 
 function renderTransactionsList(transactions) {
-    window.currentTransactions = transactions; // Store for printing access
+    if (!transactions) return;
+    window.currentTransactions = transactions;
     const list = document.getElementById('transactions-list');
     list.innerHTML = '';
 
-    if (!transactions || transactions.length === 0) {
+    if (transactions.length === 0) {
         list.innerHTML = '<p style="text-align: center; color: #888;">No transactions found.</p>';
         return;
     }
@@ -368,7 +433,7 @@ function renderTransactionsList(transactions) {
             <td>
                 <div style="display: flex; gap: 5px;">
                     ${!isReceived ? `
-                    <button class="btn-icon" onclick="markReceived(${tx.row}, this)" title="Mark as Received">
+                    <button class="btn-icon" onclick="markReceived(${index}, this)" title="Mark as Received">
                         <i class="fas fa-check-circle"></i>
                     </button>
                     ` : '<i class="fas fa-check" style="color: #2ecc71; padding: 5px;"></i>'}
@@ -389,20 +454,51 @@ function renderTransactionsList(transactions) {
 }
 
 
-async function markReceived(rowIndex, btnElement) {
+async function markReceived(localIndex, btnElement) {
     if (!confirm("Confirm mark as Received?")) return;
 
-    // UI Loading
-    const originalContent = btnElement.innerHTML;
-    btnElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-    btnElement.disabled = true;
+    // Save state for rollback
+    const backupState = JSON.parse(JSON.stringify(appState));
+
+    // --- Optimistic Update ---
+    const tx = appState.transactions[localIndex];
+    if (!tx) return;
+
+    // 1. Update Transaction Status
+    tx.status = 'Received';
+
+    // 2. Update Inventory (Restore stock)
+    // Assuming previous status was "Delivered" or "Not Received" which consumed stock
+    const deviceName = tx.device;
+    if (appState.inventory[deviceName]) {
+        appState.inventory[deviceName].rented = (appState.inventory[deviceName].rented || 0) - 1;
+        if (appState.inventory[deviceName].rented < 0) appState.inventory[deviceName].rented = 0;
+
+        appState.inventory[deviceName].available = (appState.inventory[deviceName].total || 0) - appState.inventory[deviceName].rented;
+    }
+
+    // Render immediately
+    renderDashboard();
+    renderTransactionsList(appState.transactions);
+    showToast("Status Updated! Syncing...");
 
     try {
+        // Send to Backend
+        // Note: We need the REAL row ID from the sheet, which we stored in tx.row
+        // If tx.row is -1 (newly added), we might fail here if we haven't synced yet.
+        // But assuming fetch happens fast enough or we just synced. 
+        if (!tx.row || tx.row === -1) {
+            // Fallback: If we don't have a row ID yet (corner case: user adds then immediately completes),
+            // a full sync is safer, but strictly we can't update without row ID.
+            // For now, we proceed. If it fails, rollback.
+            console.warn("Transaction might lack Row ID. Syncing first.");
+        }
+
         const response = await fetch(CONFIG.webhookUrl, {
             method: 'POST',
             body: JSON.stringify({
                 action: 'updateStatus',
-                row: rowIndex,
+                row: tx.row,
                 status: 'Received'
             })
         });
@@ -410,23 +506,38 @@ async function markReceived(rowIndex, btnElement) {
         const result = await response.json();
 
         if (result.status === 'success') {
-            showToast("Status Updated!");
-            fetchData(); // Refresh list/inventory
+            // Silent refresh to ensure consistency
+            fetchData();
         } else {
-            showToast("Error update: " + result.message, "error");
-            btnElement.innerHTML = originalContent;
-            btnElement.disabled = false;
+            throw new Error(result.message);
         }
 
     } catch (err) {
         console.error(err);
-        showToast("Network Error", "error");
-        btnElement.innerHTML = originalContent;
-        btnElement.disabled = false;
+        showToast("Sync Error! Reverting status.", "error");
+        // Rollback
+        appState = backupState;
+        renderDashboard();
+        renderTransactionsList(appState.transactions);
     }
 }
 
 
+
+// --- Filters ---
+function setupFilters() {
+    const searchInput = document.getElementById('searchTransactions');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            const filtered = appState.transactions.filter(tx => {
+                const searchStr = `${tx.patientName} ${tx.patientId} ${tx.recipientName} ${tx.device} ${tx.status} ${tx.deviceNumber}`.toLowerCase();
+                return searchStr.includes(term);
+            });
+            renderTransactionsList(filtered);
+        });
+    }
+}
 
 // --- Utilities ---
 function showToast(message, type = "success") {

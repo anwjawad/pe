@@ -84,13 +84,13 @@ function doGet(e) {
 
       transactionsData.forEach((row, index) => {
         const deviceType = row[9]; // Device Name column index
-        const type = row[13]; // transaction type: "New" or "Return"
+        const status = row[12]; // Status column index (Delivered / Received / Not Received)
 
         if (inventoryMap[deviceType]) {
-          if (type === "New") {
+          // If the item is currently with the patient (Delivered) or legacy (Not Received), it counts as rented.
+          // If it is 'Received', it is back in stock, so we don't count it as rented.
+          if (status === "Delivered" || status === "Not Received") {
             inventoryMap[deviceType].rented++;
-          } else if (type === "Return") {
-            inventoryMap[deviceType].rented--;
           }
         }
 
