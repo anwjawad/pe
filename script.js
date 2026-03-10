@@ -286,6 +286,17 @@ async function handleFormSubmit(form) {
     const data = {};
     formData.forEach((value, key) => data[key] = value);
 
+    if (data.action === "addTransaction") {
+        let metaNotes = [];
+        if (data.signature) metaNotes.push(`Signed by: ${data.signature}`);
+        if (data.returnDate) metaNotes.push(`Return Date: ${data.returnDate}`);
+        
+        if (metaNotes.length > 0) {
+            const extraStr = metaNotes.join("; ");
+            data.notes = data.notes ? `${extraStr}; ${data.notes}` : extraStr;
+        }
+    }
+
     // Save current state for rollback if needed
     const backupState = JSON.parse(JSON.stringify(appState));
 
